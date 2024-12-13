@@ -1,0 +1,120 @@
+// Pin definitions
+int motor_left_enable = 6;  // ENA
+int motor_left_input1 = 7;  // IN1
+int motor_left_input2 = 5;  // IN2
+int motor_right_enable = 3; // ENB
+int motor_right_input1 = 4; // IN3
+int motor_right_input2 = 2; // IN4
+int trigPin = 13;           // Ultrasonic sensor trigger pin
+int echoPin = 12;           // Ultrasonic sensor echo pin
+int motor_speed = 255;      // Motor speed (0-255)
+
+// Distance threshold in cm
+const int distance_threshold = 5;
+
+// Define motor direction constants for readability
+const int FORWARD = HIGH;
+const int BACKWARD = LOW;
+
+// Define timeout constant for distance measurement
+const long ECHO_TIMEOUT = 30000; // Timeout in microseconds
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(9600);
+
+  // Motor control pins as outputs
+  pinMode(motor_left_enable, OUTPUT);
+  pinMode(motor_left_input1, OUTPUT);
+  pinMode(motor_left_input2, OUTPUT);
+  pinMode(motor_right_enable, OUTPUT);
+  pinMode(motor_right_input1, OUTPUT);
+  pinMode(motor_right_input2, OUTPUT);
+
+  // Ultrasonic sensor pins
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  // Ensure motors are off at the start
+  stopMotors();
+}
+
+void loop() {
+  // Measure distance to an obstacle
+  int distance = measureDistance();
+
+  if (distance <= distance_threshold) {
+    // Stop and turn right if obstacle is detected
+    Serial.println("Obstacle detected! Stopping and turning right.");
+    stopMotors();
+    delay(500); // Pause briefly
+    turnRight(); // Turn right
+    delay(1000); // Adjust this delay for a 90-degree turn
+    stopMotors();
+    delay(500); // Pause briefly
+  } else {
+    // Move forward if no obstacle is detected
+    Serial.println("No obstacle detected. Moving forward.");
+    runMotors(motor_speed, FORWARD, BACKWARD, FORWARD, BACKWARD); // Move forward
+  }
+  delay(100); // Short delay to reduce sensor polling frequency
+}
+
+// Function to measure distance using ultrasonic sensor
+int measureDistance() {
+  // Send a pulse to the trigger pin
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Measure the pulse duration from the echo pin
+  long duration = pulseIn(echoPin, HIGH, ECHO_TIMEOUT); // Timeout after 30 ms
+  if (duration == 0) {
+    Serial.println("No echo received (timeout).");
+    return 999; // Timeout, return an out-of-range value
+  }
+
+  // Calculate distance in centimeters
+  int distance = duration * 0.034 / 2;
+  // Sanity check: Ensure distance is within a reasonable range
+  if (distance < 2 || distance > 400) {
+    Serial.println("Unrealistic distance detected. Re-measuring.");
+    return 999; // Return a value indicating an issue
+  }
+
+  Serial.print("Measured Distance: ");
+  Serial.println(distance);
+  return distance;
+}
+
+// Function to run both motors
+void runMotors(int speed, int left_dir1, int left_dir2, int right_dir1, int right_dir2) {
+  // Left motor
+  digitalWrite(motor_left_input1, left_dir1);
+  digitalWrite(motor_left_input2, left_dir2);
+  analogWrite(motor_left_enable, speed);
+
+  // Right motor
+  digitalWrite(motor_right_input1, right_dir1);
+  digitalWrite(motor_right_input2, right_dir2);
+  analogWrite(motor_right_enable, speed);
+}
+
+// Function to stop both motors
+void stopMotors() {
+  // Set all motor control pins to LOW to stop motors
+  digitalWrite(motor_left_input1, LOW);
+  digitalWrite(motor_left_input2, LOW);
+  digitalWrite(motor_left_enable, LOW);
+  digitalWrite(motor_right_input1, LOW);
+  digitalWrite(motor_right_input2, LOW);
+  digitalWrite(motor_right_enable, LOW);
+}
+
+// Function to turn the robot right
+void turnRight() {
+  // Left motor forward, right motor backward for a right turn
+  runMotors(motor_speed, FORWARD, BACKWARD, BACKWARD, FORWARD);
+}
